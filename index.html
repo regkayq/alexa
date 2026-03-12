@@ -77,6 +77,21 @@
       letter-spacing: .06em;
     }
 
+    .btn-mute {
+      background: rgba(0,201,177,.1);
+      border: 1px solid rgba(0,201,177,.25);
+      color: var(--teal);
+      border-radius: 8px;
+      padding: 5px 11px;
+      font-size: .95rem;
+      cursor: pointer;
+      transition: background .2s, border-color .2s, color .2s;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+    .btn-mute:hover  { background: rgba(0,201,177,.2); }
+    .btn-mute.muted  { background: rgba(255,255,255,.04); border-color: var(--border); color: var(--muted); }
+
     /* ── Left panel ── */
     .panel-left {
       border-right: 1px solid var(--border);
@@ -506,6 +521,7 @@
       <h1>Marina Recipes</h1>
       <p>5 Minute Recipes · Alexa Skill by Kay Quade</p>
     </div>
+    <button class="btn-mute" id="btn-mute" title="Toggle voice narration">🔊</button>
     <div class="topbar-badge">ALEXA SKILL DEMO</div>
   </header>
 
@@ -727,6 +743,63 @@ const SCENARIOS = [
 ];
 
 // ────────────────────────────────────────────────────────────
+//  TEXT-TO-SPEECH ENGINE  (Web Speech API — no libraries)
+// ────────────────────────────────────────────────────────────
+const TTS = {
+  muted: false,
+  voice: null,
+  rate:  0.82,   // slightly slower than default (1.0) — clear & natural
+  pitch: 1.08,   // just a touch higher — Alexa-ish
+
+  init() {
+    if (!window.speechSynthesis) return;
+    const pick = () => {
+      const voices = speechSynthesis.getVoices();
+      if (!voices.length) return;
+      // Preferred voices in priority order
+      const want = [
+        'Google UK English Female',
+        'Samantha',                                      // macOS / iOS
+        'Karen',                                         // macOS
+        'Moira',                                         // macOS
+        'Microsoft Zira Desktop - English (United States)',
+        'Microsoft Zira - English (United States)',
+      ];
+      for (const name of want) {
+        const v = voices.find(v => v.name === name);
+        if (v) { this.voice = v; return; }
+      }
+      // Fallback: any English voice (index 1 is often female in Chrome)
+      const en = voices.filter(v => v.lang.startsWith('en'));
+      this.voice = en[1] || en[0] || voices[0] || null;
+    };
+    pick();
+    speechSynthesis.addEventListener('voiceschanged', pick);
+  },
+
+  // Returns a Promise that resolves when speech is finished (or immediately if muted)
+  speak(text) {
+    return new Promise(resolve => {
+      if (this.muted || !window.speechSynthesis) { resolve(); return; }
+      speechSynthesis.cancel();
+      const utt    = new SpeechSynthesisUtterance(text);
+      utt.rate     = this.rate;
+      utt.pitch    = this.pitch;
+      if (this.voice) utt.voice = this.voice;
+      // Safety timeout — some browsers never fire onend
+      const guard  = setTimeout(resolve, text.length * 75 + 2500);
+      utt.onend    = () => { clearTimeout(guard); resolve(); };
+      utt.onerror  = () => { clearTimeout(guard); resolve(); };
+      speechSynthesis.speak(utt);
+    });
+  },
+
+  cancel() { if (window.speechSynthesis) speechSynthesis.cancel(); },
+  toggle() { this.muted = !this.muted; if (this.muted) this.cancel(); }
+};
+TTS.init();
+
+// ────────────────────────────────────────────────────────────
 //  STATE
 // ────────────────────────────────────────────────────────────
 let currentScenario = SCENARIOS[0];
@@ -738,6 +811,7 @@ const stateLabel = document.getElementById('state-label');
 const chat       = document.getElementById('chat');
 const btnPlay    = document.getElementById('btn-play');
 const btnReset   = document.getElementById('btn-reset');
+const btnMute    = document.getElementById('btn-mute');
 const progFill   = document.getElementById('prog-fill');
 const progPct    = document.getElementById('prog-pct');
 const recipeCard        = document.getElementById('recipe-card');
@@ -747,6 +821,16 @@ const rcName        = document.getElementById('rc-name');
 const rcMeal        = document.getElementById('rc-meal');
 const rcIngredients = document.getElementById('rc-ingredients');
 const rcSteps       = document.getElementById('rc-steps');
+
+// Mute button
+btnMute.addEventListener('click', () => {
+  TTS.toggle();
+  btnMute.textContent = TTS.muted ? '🔇' : '🔊';
+  btnMute.classList.toggle('muted', TTS.muted);
+  btnMute.title = TTS.muted ? 'Click to enable voice' : 'Click to mute voice';
+});
+// Hide button if browser has no TTS
+if (!window.speechSynthesis) btnMute.style.display = 'none';
 
 // Build tabs
 const tabsEl = document.getElementById('tabs');
@@ -805,18 +889,15 @@ function removeTyping() {
 function showRecipeCard(mealKey, recipeKey) {
   const recipe = MEAL_DATA[mealKey].recipes[recipeKey];
   if (!recipe) return;
-
   rcEmoji.textContent = recipe.emoji;
   rcName.textContent  = recipe.name;
   rcMeal.textContent  = mealKey.toUpperCase();
-
   rcIngredients.innerHTML = '';
   recipe.ingredients.forEach(ing => {
     const li = document.createElement('li');
     li.textContent = ing;
     rcIngredients.appendChild(li);
   });
-
   rcSteps.innerHTML = '';
   recipe.steps.forEach((step, i) => {
     const li = document.createElement('li');
@@ -825,7 +906,6 @@ function showRecipeCard(mealKey, recipeKey) {
     li.innerHTML = `<span class="step-num">${i + 1}</span><span>${step}</span>`;
     rcSteps.appendChild(li);
   });
-
   recipePlaceholder.style.display = 'none';
   recipeCard.classList.add('visible');
 }
@@ -876,7 +956,15 @@ async function runScript() {
       if (step.activeStep !== undefined) {
         highlightStep(step.activeStep);
       }
-      await wait(step.pause + 300);
+
+      if (!TTS.muted && window.speechSynthesis) {
+        // Speaking animation stays on while TTS is actually talking
+        await TTS.speak(step.text);
+        await wait(350);         // short breath between lines
+      } else {
+        await wait(step.pause + 300);   // fallback: timer-based like before
+      }
+
       setState('');
       await wait(200);
     }
@@ -891,6 +979,7 @@ async function runScript() {
 
 function reset() {
   if (running) return;
+  TTS.cancel();
   stepIdx = 0;
   setState('');
   chat.innerHTML = '';
