@@ -694,15 +694,13 @@ const SCENARIOS = [
     ]
   },
   {
-    id: 'snack', label: 'Snack + Dietary Pref', icon: '⭐',
+    id: 'snack', label: 'Snack', icon: '⭐',
     meal: 'snack', recipe: 'apple_peanut_butter',
     script: [
       { type:'user',  text:'Alexa, open Marina Recipes',                                                                                                                                                                                                                      pause:1000 },
-      { type:'alexa', text:'Hey there! Marina from 5 Minute Recipes. Looking for a late-night snack? Or I can help with breakfast, lunch, or dinner too. What sounds good?',                                                                                                  pause:1400 },
-      { type:'user',  text:'I\'m vegetarian',                                                                                                                                                                                                                                 pause:1000 },
-      { type:'alexa', text:'Perfect! I\'ll keep your vegetarian preference in mind for all future suggestions. What meal would you like to make?',                                                                                                                            pause:1400 },
+      { type:'alexa', text:'Hey there! Marina from 5 Minute Recipes. Looking for a snack? Or I can help with breakfast, lunch, or dinner too. What sounds good?',                                                                                                             pause:1400 },
       { type:'user',  text:'Give me a snack',                                                                                                                                                                                                                                 pause:1000 },
-      { type:'alexa', text:'Perfect! I have vegetarian snack options ready for you since that\'s your preference. I have 2 quick recipes for you. Option 1: Apple with Peanut Butter. Option 2: Cheese and Crackers. Which one would you like?',                              pause:1700 },
+      { type:'alexa', text:'Great! I have 2 quick snack recipes for you. Option 1: Apple with Peanut Butter. Option 2: Cheese and Crackers. Which one would you like?',                                                                                                       pause:1700 },
       { type:'user',  text:'Apple with peanut butter',                                                                                                                                                                                                                        pause:1000 },
       { type:'alexa', text:'Excellent choice! Let\'s make Apple with Peanut Butter. You\'ll need: 1 apple, 2 tablespoons of peanut butter. Ready for the steps?',                                                                                                           pause:1500, showRecipe:true },
       { type:'user',  text:'Yes',                                                                                                                                                                                                                                             pause:900  },
